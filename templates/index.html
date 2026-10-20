@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OrangeHRM RPA Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">O</span><div><strong>RPA Studio</strong><small>OrangeHRM Automation</small></div></div>
+      <div class="nav-label">WORKSPACE</div>
+      <a class="nav-item active" href="{{ url_for('index') }}">▦ <span>Dashboard</span></a>
+      <a class="nav-item" href="#employee-form">＋ <span>Add Employee</span></a>
+      <a class="nav-item" href="#employee-list">☷ <span>Employee List</span></a>
+      <div class="sidebar-note"><span class="pulse"></span> Local automation workspace</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><div class="eyebrow">AUTOMATION WORKSPACE</div><h1>Dashboard</h1></div>
+        <div class="top-tag"><span class="pulse"></span> OrangeHRM Demo</div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}{% endif %}
+      {% endwith %}
+
+      <section class="stats">
+        <article class="stat-card"><div class="stat-icon orange">↗</div><div><p>Automation Status</p><h2>{{ status }}</h2></div><span class="stat-dot {{ 'good' if status == 'Success' else 'bad' if status == 'Failed' else '' }}"></span></article>
+        <article class="stat-card"><div class="stat-icon blue">☷</div><div><p>Employees Loaded</p><h2>{{ employees|length }}</h2></div></article>
+        <article class="stat-card"><div class="stat-icon green">✓</div><div><p>Connection</p><h2>On demand</h2></div></article>
+      </section>
+
+      <section class="panel" id="employee-form">
+        <div class="panel-heading"><div><span class="section-kicker">STEP 01</span><h2>Automation Setup</h2><p>Enter demo account details and new employee information.</p></div><span class="pill">Selenium</span></div>
+        <form method="post" action="{{ url_for('add_employee') }}" id="automationForm">
+          <div class="form-section-title">OrangeHRM credentials</div>
+          <div class="form-grid two">
+            <label>Username<input name="username" autocomplete="username" placeholder="Admin" required></label>
+            <label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Enter demo password" required></label>
+          </div>
+          <div class="form-section-title separated">Employee details</div>
+          <div class="form-grid three">
+            <label>First name<input name="first_name" placeholder="e.g. Rahul" required></label>
+            <label>Middle name <span class="optional">Optional</span><input name="middle_name" placeholder="e.g. Kumar"></label>
+            <label>Last name<input name="last_name" placeholder="e.g. Sharma" required></label>
+            <label class="span-all">Employee ID <span class="optional">Optional — blank means use OrangeHRM generated ID</span><input name="employee_id" placeholder="e.g. 0298"></label>
+          </div>
+          <div class="form-actions"><p>Browser automation will open in a separate window.</p><button class="btn primary" type="submit">▶ &nbsp; Start Automation</button></div>
+        </form>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-heading"><div><span class="section-kicker">STEP 02</span><h2>Latest Execution Result</h2><p>Status and message of the last automation run.</p></div><span class="status-pill {{ 'success' if status == 'Success' else 'failed' if status == 'Failed' else 'ready' }}">{{ status }}</span></div>
+        <div class="result-message"><span class="result-symbol">{{ '✓' if status == 'Success' else '!' if status == 'Failed' else '◷' }}</span><div><strong>{{ message }}</strong><small>Detailed logs are saved in logs/app.log and logs/automation.log.</small></div></div>
+      </section>
+
+      <section class="panel" id="employee-list">
+        <div class="panel-heading list-heading"><div><span class="section-kicker">STEP 03</span><h2>Employee List</h2><p>Fetch visible records from the OrangeHRM PIM page.</p></div><div class="heading-actions"><form method="post" action="{{ url_for('fetch_employee_list') }}" id="fetchForm"><input type="hidden" name="username" id="fetchUsername"><input type="hidden" name="password" id="fetchPassword"><button class="btn secondary" type="submit">↻ &nbsp; Fetch / Refresh</button></form><a class="btn outline" href="{{ url_for('download_csv') }}">↓ CSV</a></div></div>
+        <div class="table-wrap"><table><thead><tr><th>EMPLOYEE ID</th><th>FIRST NAME</th><th>LAST NAME</th></tr></thead><tbody id="employeeTableBody">
+        {% for employee in employees %}
+          <tr><td><span class="id-chip">{{ employee.employee_id or '—' }}</span></td><td>{{ employee.first_name or '—' }}</td><td>{{ employee.last_name or '—' }}</td></tr>
+        {% else %}
+          <tr><td colspan="3"><div class="empty-state"><span>☷</span><strong>No employee data loaded yet</strong><small>Fill in the credentials above and click Fetch / Refresh.</small></div></td></tr>
+        {% endfor %}
+        </tbody></table></div>
+        <div class="table-footer">
+          <span id="recordCount">
+            {{ employees|length }} record(s) currently loaded
+          </span>
+
+          <div class="pagination">
+            <button class="btn outline" id="prevPage" type="button">
+              ← Previous
+            </button>
+
+            <span id="pageInfo">Page 1</span>
+
+            <button class="btn outline" id="nextPage" type="button">
+              Next →
+            </button>
+          </div>
+        </div>
+      </section>
+      <footer>OrangeHRM RPA Dashboard <span>Built with Flask + Selenium</span></footer>
+    </main>
+  </div>
+  <script>
+    const mainForm = document.getElementById('automationForm');
+    const fetchForm = document.getElementById('fetchForm');
+    fetchForm.addEventListener('submit', function (event) {
+      const username = mainForm.elements.username.value.trim();
+      const password = mainForm.elements.password.value;
+      if (!username || !password) {
+        event.preventDefault();
+        alert('Please enter the username and password in Automation Setup before fetching the employee list.');
+        return;
+      }
+      document.getElementById('fetchUsername').value = username;
+      document.getElementById('fetchPassword').value = password;
+    });
+    mainForm.addEventListener('submit', function () {
+      const button = mainForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = 'Starting automation...';
+    });
+    const tableBody = document.getElementById("employeeTableBody");
+    const previousButton = document.getElementById("prevPage");
+    const nextButton = document.getElementById("nextPage");
+    const pageInfo = document.getElementById("pageInfo");
+    const recordCount = document.getElementById("recordCount");
+
+    const allRows = Array.from(
+      tableBody.querySelectorAll("tr")
+    ).filter(row => {
+      const cells = row.querySelectorAll("td");
+      return cells.length === 3 &&
+        row.querySelector(".empty-state") === null;
+    });
+
+    const pageSize = 50;
+    let currentPage = 1;
+
+    function renderEmployeePage() {
+      const totalRecords = allRows.length;
+      const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
+
+      currentPage = Math.min(currentPage, totalPages);
+
+      allRows.forEach((row, index) => {
+        const start = (currentPage - 1) * pageSize;
+        row.style.display =
+          index >= start && index < start + pageSize ? "" : "none";
+      });
+
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+      recordCount.textContent =
+        `${totalRecords} employee record(s) loaded`;
+
+      previousButton.disabled = currentPage <= 1;
+      nextButton.disabled = currentPage >= totalPages;
+    }
+
+    previousButton.addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderEmployeePage();
+      }
+    });
+
+    nextButton.addEventListener("click", () => {
+      const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize));
+
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderEmployeePage();
+      }
+    });
+
+    renderEmployeePage();
+  </script>
+</body>
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="toast-container">
+      {% for category, message in messages %}
+        <div class="toast-message {{ category }}" role="alert">
+          <strong>
+            {{ "Success" if category == "success" else "Error" }}
+          </strong>
+
+          <span>{{ message }}</span>
+
+          <button
+            type="button"
+            class="toast-close"
+            aria-label="Close message"
+            onclick="this.parentElement.remove()">
+            &times;
+          </button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+</html>
