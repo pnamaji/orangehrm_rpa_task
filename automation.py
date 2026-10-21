@@ -13,6 +13,9 @@ load_dotenv()
 ORANGEHRM_BASE_URL = os.environ.get("ORANGEHRM_BASE_URL", "https://opensource-demo.orangehrmlive.com/")
 WAIT_SECONDS = 20
 
+class LoginFailedError(Exception):
+    pass
+
 os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     filename=os.path.join("logs", "automation.log"),
@@ -31,16 +34,64 @@ def wait_click(wait, by, selector):
     element.click()
     return element
 
+# def login(driver, wait, username, password):
+#     driver.get(ORANGEHRM_BASE_URL)
+#     user = wait.until(EC.visibility_of_element_located((By.NAME, "username")))
+#     user.clear()
+#     user.send_keys(username)
+#     pwd = wait.until(EC.visibility_of_element_located((By.NAME, "password")))
+#     pwd.clear()
+#     pwd.send_keys(password)
+#     wait_click(wait, By.CSS_SELECTOR, "button[type='submit']")
+#     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "nav[aria-label='Sidepanel']")))
+#     logging.info("Login successful")
+
 def login(driver, wait, username, password):
     driver.get(ORANGEHRM_BASE_URL)
-    user = wait.until(EC.visibility_of_element_located((By.NAME, "username")))
+
+    user = wait.until(
+        EC.visibility_of_element_located((By.NAME, "username"))
+    )
     user.clear()
     user.send_keys(username)
-    pwd = wait.until(EC.visibility_of_element_located((By.NAME, "password")))
+
+    pwd = wait.until(
+        EC.visibility_of_element_located((By.NAME, "password"))
+    )
     pwd.clear()
     pwd.send_keys(password)
+
     wait_click(wait, By.CSS_SELECTOR, "button[type='submit']")
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "nav[aria-label='Sidepanel']")))
+
+    def check_login_result(d):
+        alerts = d.find_elements(
+            By.CSS_SELECTOR, ".oxd-alert-content-text"
+        )
+
+        for alert in alerts:
+            try:
+                if alert.is_displayed() and alert.text.strip():
+                    return ("error", alert.text.strip())
+            except StaleElementReferenceException:
+                continue
+
+        dashboard = d.find_elements(
+            By.CSS_SELECTOR, "nav[aria-label='Sidepanel']"
+        )
+
+        if dashboard:
+            return ("success", "")
+
+        return False
+
+    result = wait.until(check_login_result)
+
+    if result[0] == "error":
+        logging.warning("Login failed: %s", result[1])
+        raise LoginFailedError(
+            "Login failed: Invalid username or password."
+        )
+
     logging.info("Login successful")
 
 def logout_if_possible(driver, wait):
@@ -431,6 +482,14 @@ def run_add_employee(username, password, first_name, middle_name, last_name, emp
                     "employees": []
                 }
 
+        except LoginFailedError as exc:
+            logging.warning("%s", exc)
+            return {
+                "success": False,
+                "message": str(exc),
+                "employees": []
+            }
+
         except TimeoutException:
             pass
 
@@ -652,6 +711,13 @@ def fetch_employees(username, password):
                 f"Fetched {len(employees)} employee records from all pages."
             ),
             "employees": employees
+        }
+    except LoginFailedError as exc:
+        logging.warning("%s", exc)
+        return {
+            "success": False,
+            "message": str(exc),
+            "employees": []
         }
     except TimeoutException:
         logging.exception("Timeout during employee fetch")
