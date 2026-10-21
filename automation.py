@@ -34,18 +34,6 @@ def wait_click(wait, by, selector):
     element.click()
     return element
 
-# def login(driver, wait, username, password):
-#     driver.get(ORANGEHRM_BASE_URL)
-#     user = wait.until(EC.visibility_of_element_located((By.NAME, "username")))
-#     user.clear()
-#     user.send_keys(username)
-#     pwd = wait.until(EC.visibility_of_element_located((By.NAME, "password")))
-#     pwd.clear()
-#     pwd.send_keys(password)
-#     wait_click(wait, By.CSS_SELECTOR, "button[type='submit']")
-#     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "nav[aria-label='Sidepanel']")))
-#     logging.info("Login successful")
-
 def login(driver, wait, username, password):
     driver.get(ORANGEHRM_BASE_URL)
 
